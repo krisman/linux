@@ -2735,6 +2735,25 @@ struct task_struct *create_io_thread(int (*fn)(void *), void *arg, int node)
 }
 
 /*
+ * This is like kernel_clone(), but shaved down and tailored for io_uring_spawn.
+ * It returns a created task, or an error pointer. The returned task is
+ * inactive, and the caller must fire it up through wake_up_new_task(p).
+ */
+struct task_struct *create_io_uring_spawn_task(int (*fn)(void *), void *arg)
+{
+	unsigned long flags = CLONE_CLEAR_SIGHAND;
+	struct kernel_clone_args args = {
+		.flags		= ((lower_32_bits(flags) | CLONE_VM |
+				    CLONE_UNTRACED) & ~CSIGNAL),
+		.exit_signal	= (lower_32_bits(flags) & CSIGNAL),
+		.fn		= fn,
+		.fn_arg		= arg,
+	};
+
+	return copy_process(NULL, 0, NUMA_NO_NODE, &args);
+}
+
+/*
  *  Ok, this is the main fork-routine.
  *
  * It copies the process, and if successful kick-starts

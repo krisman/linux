@@ -98,6 +98,7 @@
 #include "uring_cmd.h"
 #include "msg_ring.h"
 #include "memmap.h"
+#include "spawn.h"
 
 #include "timeout.h"
 #include "poll.h"
@@ -1704,7 +1705,7 @@ static bool io_assign_file(struct io_kiocb *req, const struct io_issue_def *def,
 	return !!req->file;
 }
 
-static int io_issue_sqe(struct io_kiocb *req, unsigned int issue_flags)
+int io_issue_sqe(struct io_kiocb *req, unsigned int issue_flags)
 {
 	const struct io_issue_def *def = &io_issue_defs[req->opcode];
 	const struct cred *creds = NULL;
@@ -2081,6 +2082,11 @@ static int io_init_req(struct io_ring_ctx *ctx, struct io_kiocb *req,
 			state->need_plug = false;
 			blk_start_plug_nr_ios(&state->plug, state->submit_nr);
 		}
+	}
+
+	if (opcode == IORING_OP_CLONE) {
+		if (unlikely(sqe_flags != REQ_F_LINK || ctx->submit_state.link.head))
+			return -EINVAL;
 	}
 
 	personality = READ_ONCE(sqe->personality);
@@ -2856,7 +2862,7 @@ static __cold bool io_cancel_ctx_cb(struct io_wq_work *work, void *data)
 static __cold void io_ring_exit_work(struct work_struct *work)
 {
 	struct io_ring_ctx *ctx = container_of(work, struct io_ring_ctx, exit_work);
-	unsigned long timeout = jiffies + HZ * 60 * 5;
+	unsigned long timeout = jiffies + HZ * 5;
 	unsigned long interval = HZ / 20;
 	struct io_tctx_exit exit;
 	struct io_tctx_node *node;
