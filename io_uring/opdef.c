@@ -521,6 +521,11 @@ const struct io_issue_def io_issue_defs[] = {
 		.prep			= io_clone_prep,
 		.issue			= io_clone,
 	},
+	[IORING_OP_EXEC] = {
+		.audit_skip		= 1,
+		.prep			= io_exec_prep,
+		.issue			= io_exec,
+	},
 };
 
 const struct io_cold_def io_cold_defs[] = {
@@ -752,6 +757,9 @@ const struct io_cold_def io_cold_defs[] = {
 	},
 	[IORING_OP_CLONE] = {
 		.name			= "CLONE",
+	},
+	[IORING_OP_EXEC] = {
+		.name			= "EXEC",
 	},
 };
 

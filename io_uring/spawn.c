@@ -16,6 +16,16 @@
 /* FIXME: Put this in a header */
 int io_issue_sqe(struct io_kiocb *req, unsigned int issue_flags);
 
+struct io_exec {
+	struct file *file_unused;
+	const char __user *filename;
+	const char __user *const __user *argv;
+	const char __user *const __user *envp;
+
+	int dfd;
+	u32 flags;
+};
+
 struct io_clone {
 	struct file *file_unused;
 	struct io_kiocb *link;
@@ -70,6 +80,15 @@ static int io_uring_spawn_task(void *data)
 				fail_link(next);
 				break;
 			}
+		} else if (req->opcode == IORING_OP_EXEC) {
+			/*
+			 * Don't execute anything after the first
+			 * successful IORING_OP_EXEC.  Cancel anything
+			 * coming after it and let userspace return
+			 */
+			fail_link(next);
+			ret = 0;
+			break;
 		}
 	}
 
@@ -126,4 +145,38 @@ int io_clone(struct io_kiocb *req, unsigned int issue_flags)
 	wake_up_new_task(tsk);
 
 	return IOU_OK;
+}
+
+int io_exec_prep(struct io_kiocb *req, const struct io_uring_sqe *sqe)
+{
+	struct io_exec *e = io_kiocb_to_cmd(req, typeof(*e));
+
+	if (unlikely(sqe->buf_index || sqe->len || sqe->file_index))
+		return -EINVAL;
+
+	e->dfd = READ_ONCE(sqe->fd);
+	e->filename = u64_to_user_ptr(READ_ONCE(sqe->addr));
+	e->argv = u64_to_user_ptr(READ_ONCE(sqe->addr2));
+	e->envp = u64_to_user_ptr(READ_ONCE(sqe->addr3));
+	e->flags = READ_ONCE(sqe->execve_flags);
+
+	return 0;
+}
+
+int io_exec(struct io_kiocb *req, unsigned int issue_flags)
+{
+	struct io_exec *e = io_kiocb_to_cmd(req, typeof(*e));
+	int ret;
+
+	ret = do_execveat(e->dfd, getname(e->filename),
+			  e->argv, e->envp, e->flags);
+	if (ret < 0) {
+		req_set_fail(req);
+		io_req_set_res(req, ret, 0);
+
+		return ret;
+	}
+	io_req_set_res(req, ret, 0);
+	return IOU_OK;
+
 }

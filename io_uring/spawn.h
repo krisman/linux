@@ -7,3 +7,6 @@
 
 int io_clone_prep(struct io_kiocb *req, const struct io_uring_sqe *sqe);
 int io_clone(struct io_kiocb *req, unsigned int issue_flags);
+
+int io_exec_prep(struct io_kiocb *req, const struct io_uring_sqe *sqe);
+int io_exec(struct io_kiocb *req, unsigned int issue_flags);
