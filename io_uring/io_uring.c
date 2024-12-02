@@ -225,12 +225,6 @@ bool io_match_task_safe(struct io_kiocb *head, struct io_uring_task *tctx,
 	return matched;
 }
 
-static inline void req_fail_link_node(struct io_kiocb *req, int res)
-{
-	req_set_fail(req);
-	io_req_set_res(req, res, 0);
-}
-
 static inline void io_req_add_to_cache(struct io_kiocb *req, struct io_ring_ctx *ctx)
 {
 	wq_stack_add_head(&req->comp_list, &ctx->submit_state.free_list);
