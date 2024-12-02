@@ -990,15 +990,6 @@ __cold void io_free_req(struct io_kiocb *req)
 	io_req_task_work_add(req);
 }
 
-static void __io_req_find_next_prep(struct io_kiocb *req)
-{
-	struct io_ring_ctx *ctx = req->ctx;
-
-	spin_lock(&ctx->completion_lock);
-	io_disarm_next(req);
-	spin_unlock(&ctx->completion_lock);
-}
-
 static inline struct io_kiocb *io_req_find_next(struct io_kiocb *req)
 {
 	struct io_kiocb *nxt;
@@ -1009,8 +1000,11 @@ static inline struct io_kiocb *io_req_find_next(struct io_kiocb *req)
 	 * dependencies to the next request. In case of failure, fail the rest
 	 * of the chain.
 	 */
-	if (unlikely(req->flags & IO_DISARM_MASK))
-		__io_req_find_next_prep(req);
+	if (unlikely(req->flags & IO_DISARM_MASK)) {
+		spin_lock(&req->ctx->completion_lock);
+		io_disarm_next(req);
+		spin_unlock(&req->ctx->completion_lock);
+	}
 	nxt = req->link;
 	req->link = NULL;
 	return nxt;
