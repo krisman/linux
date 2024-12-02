@@ -2206,6 +2206,8 @@ __latent_entropy struct task_struct *copy_process(
 	p->flags &= ~PF_KTHREAD;
 	if (args->kthread)
 		p->flags |= PF_KTHREAD;
+
+	p->flags &= ~PF_USER_WORKER;
 	if (args->user_worker) {
 		/*
 		 * Mark us a user worker, and block any signal that isn't
