@@ -2017,7 +2017,7 @@ out_ret:
 	return retval;
 }
 
-static int do_execve(struct filename *filename,
+int do_execve(struct filename *filename,
 	const char __user *const __user *__argv,
 	const char __user *const __user *__envp)
 {
@@ -2026,7 +2026,7 @@ static int do_execve(struct filename *filename,
 	return do_execveat_common(AT_FDCWD, filename, argv, envp, 0);
 }
 
-static int do_execveat(int fd, struct filename *filename,
+int do_execveat(int fd, struct filename *filename,
 		const char __user *const __user *__argv,
 		const char __user *const __user *__envp,
 		int flags)
