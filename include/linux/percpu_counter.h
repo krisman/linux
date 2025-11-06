@@ -130,6 +130,8 @@ static inline bool percpu_counter_initialized(struct percpu_counter *fbc)
 	return (fbc->counters != NULL);
 }
 
+int cpu_hotplug_add_watchlist(struct percpu_counter *fbc, int nr_counters);
+
 #else /* !CONFIG_SMP */
 
 struct percpu_counter {
