@@ -39,7 +39,8 @@ static inline int lazy_pcpu_counter_upgrade(struct lazy_percpu_counter *lpc, gfp
 	if (lazy_pcpu_counter_initialized(lpc))
 		return 0;
 
-	counters = __alloc_percpu_gfp(1, __alignof__(*counters), gfp);
+	counters = __alloc_percpu_gfp(sizeof(*counters),
+				      __alignof__(*counters), gfp);
 	if (!counters)
 		return -ENOMEM;
 
@@ -55,15 +56,20 @@ static inline int lazy_pcpu_counter_upgrade(struct lazy_percpu_counter *lpc, gfp
 	if (WARN_ON(lazy_pcpu_counter_initialized(lpc))) {
 		raw_spin_unlock_irqrestore(&lpc->c.lock, flags);
 		free_percpu(counters);
+		BUG_ON(1);
 		return -ENOMEM;
 	}
 
 	/* After the xchg, lpc_counter behaves as a regular percpu counter. */
 	remote = (s64) atomic_long_xchg(&lpc->c.remote, (s64)(uintptr_t) counters);
 
+	WARN_ON(!lazy_pcpu_counter_initialized(lpc));
+
 	raw_spin_unlock_irqrestore(&lpc->c.lock, flags);
 
 	BUG_ON(!(remote & LAZY_INIT_BIAS));
+
+
 
 	remote = remove_bias(remote);
 	percpu_counter_add_local(&lpc->c, remote);
@@ -76,29 +82,37 @@ static inline int lazy_pcpu_counter_upgrade_many(struct lazy_percpu_counter *c, 
 {
 	s32 __percpu *counters;
 	size_t counter_size;
+	unsigned long flags;
 
-	counter_size = ALIGN(sizeof(*counters), __alignof__(*counters));
+	counter_size = ALIGN(2*sizeof(*counters), __alignof__(*counters));
 	counters = __alloc_percpu_gfp(nr_counters * counter_size,
 				      __alignof__(*counters), gfp);
 	if (!counters)
 		return -ENOMEM;
 
 	for (int i = 0; i < nr_counters; i++) {
-		struct lazy_percpu_counter *lpc = &c[i];
+		struct lazy_percpu_counter *lpc = &(c[i]);
 		s32 __percpu *n_counter;
 		s64 remote = 0;
+
+		raw_spin_lock_irqsave(&lpc->c.lock, flags);
 
 		WARN_ON(lazy_pcpu_counter_initialized(lpc));
 
 		/* After the xchg, lpc_counter behaves as a regular percpu counter. */
 		n_counter = (void __percpu *)counters + i * counter_size;
-		remote = (s64) atomic_long_xchg(&lpc->c.remote, (s64)(uintptr_t) n_counter);
+		remote = (s64) atomic_long_xchg(&(lpc->c.remote), (s64)(uintptr_t) n_counter);
 
 		BUG_ON(!(remote & LAZY_INIT_BIAS));
 
+		raw_spin_unlock_irqrestore(&lpc->c.lock, flags);
+
+		WARN_ON (n_counter != lpc->c.counters);
+
 		percpu_counter_add_local(&lpc->c, remove_bias(remote));
 	}
-	cpu_hotplug_add_watchlist((struct percpu_counter*)c, nr_counters);
+
+	cpu_hotplug_add_watchlist(&lpc->c, nr_counters);
 
 	return 0;
 }
@@ -178,4 +192,12 @@ static inline void lazy_percpu_counter_destroy_many(struct lazy_percpu_counter *
 	for (i = 0; i < nr_counters; i++)
 		if (lazy_pcpu_counter_initialized(&lpc[i]))
 			percpu_counter_destroy_many(&lpc[i].c, 1);
+}
+
+static inline void lazy_pcpu_dump(struct lazy_percpu_counter *lpc, int i)
+{
+	printk("lpc_i=%d, initialized=%d\n",i, lazy_pcpu_counter_initialized(lpc));
+	if (!lazy_pcpu_counter_initialized(lpc)) {
+		printk("lpc->c.count=%llu\n", lpc->c.count);
+	}
 }

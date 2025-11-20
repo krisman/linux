@@ -590,6 +590,7 @@ static void check_mm(struct mm_struct *mm)
 				 mm, resident_page_types[i], x,
 				 current->comm,
 				 task_pid_nr(current));
+			lazy_pcpu_dump(&mm->rss_stat[i], i);
 		}
 	}
 
@@ -1534,9 +1535,10 @@ static int copy_mm(u64 clone_flags, struct task_struct *tsk)
 		 * Only check the first element as rss_stat counters are
                  * always upgraded together.
 		 */
+		//for (int i = 0; i < NR_MM_COUNTERS; i++)
+		// 	lazy_pcpu_counter_upgrade(oldmm->rss_stat, GFP_KERNEL_ACCOUNT);
 		if(!lazy_pcpu_counter_initialized(&oldmm->rss_stat[0]))
-			if (lazy_pcpu_counter_upgrade_many(oldmm->rss_stat, NR_MM_COUNTERS,
-							   GFP_KERNEL_ACCOUNT))
+			if (lazy_pcpu_counter_upgrade_many(oldmm->rss_stat, NR_MM_COUNTERS, GFP_KERNEL_ACCOUNT))
 				return -ENOMEM;
 		mmget(oldmm);
 		mm = oldmm;
